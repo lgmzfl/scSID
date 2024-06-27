@@ -14,7 +14,7 @@ scSID <- function(data, k=100,h=0.85,n=10){
   knn.res <- Neighbour(pca$pca, pca$pca, k=k,build = "kdtree", cores = 0, checks = 1)
   ##
   dists1<-knn.res$distances
-  #�����أ�����Ҫ����ϸ�����ھ�֮���Ǹ��������ΪҪ�Ǵ�Ļ���������ϡ��ϸ��
+  #
   
   distance.diff <- (dists1[, -1, drop = FALSE] - dists1[, -ncol(knn.res$distances), drop = FALSE])
   
