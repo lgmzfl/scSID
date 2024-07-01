@@ -1,52 +1,50 @@
-scSID <- function(data, k=100,h=0.85,n=10){
+# Main function to identify rare cells using scSID method
+scSID <- function(data, k = 100, h = 0.85, n = 10) {
   
-  ## Fano genes for clustering
-  Fanodata <- CreateSeuratObject(counts = data)
-  Fanodata <- FindVariableFeatures(object = Fanodata, selection.method='vst', nfeatures=dim(data)[1], verbose = F)
-  vst <- (Fanodata@assays$RNA@meta.features$vst.variance.standardized)
-  den <- density(vst)
-  features.vst <- dimnames(data)[[1]][vst > elbow(den$x[which.max(den$y):length(den$x)], den$y[which.max(den$y):length(den$y)])]
-  tmp <- data[dimnames(data)[[1]] %in% (features.vst),]
-  tmp <- log2(as.matrix(tmp)+1)
-  pca <- irlba(t(tmp), nv=min(c(50, dim(tmp)-1))) # More robust no error, contrast to calcul.pca
-  pca$pca <-t(pca$d*t(pca$u))
-  ##
-  knn.res <- Neighbour(pca$pca, pca$pca, k=k,build = "kdtree", cores = 0, checks = 1)
-  ##
-  dists1<-knn.res$distances
-  #
+  # Step 1: Identify highly variable genes (Fano genes)
+  cat("Step 1: Identifying highly variable genes...\n")
+  seurat_obj <- CreateSeuratObject(counts = data)
+  seurat_obj <- FindVariableFeatures(object = seurat_obj, selection.method = 'vst', nfeatures = nrow(data), verbose = FALSE)
+  vst_values <- seurat_obj@assays$RNA@meta.features$vst.variance.standardized
+  density_estimate <- density(vst_values)
+  fano_genes <- rownames(data)[vst_values > find_elbow(density_estimate$x[which.max(density_estimate$y):length(density_estimate$x)], 
+                                                      density_estimate$y[which.max(density_estimate$y):length(density_estimate$y)])]
   
-  distance.diff <- (dists1[, -1, drop = FALSE] - dists1[, -ncol(knn.res$distances), drop = FALSE])
+  # Filter and log transform data for PCA
+  filtered_data <- log2(as.matrix(data[fano_genes, ]) + 1)
   
-  dists1_max <- c()
-  dists1_rep<-c()
-  for ( i in 1:dim(data)[2]) {
-    
-    dist_rep2<- which(distance.diff[i,]==max(distance.diff[i,]))
-    dists1_rep<-c(dists1_rep,dist_rep2)
-  }
-  # print(dists1_rep)
-  rare.cells <- list()
-  for(l in 2: k){
-    gapMax<-which(dists1_rep==l)
-    for (maxgap in gapMax) {
-      c<-knn.res$indices[maxgap,1:(l+n)]
-      a<-pca$pca[c,]
-      d<-dist(a)
-      fit1<-hclust(d,method = "single")
-      heihts<-max(fit1$height)*h
-      bili<-(fit1$height[length(fit1$height)]-fit1$height[length(fit1$height)-2])/fit1$height[length(fit1$height)]
+  # Step 2: Perform PCA
+  cat("Step 2: Performing PCA...\n")
+  pca_result <- irlba(t(filtered_data), nv = min(c(50, nrow(filtered_data) - 1)))
+  pca_scores <- t(pca_result$d * t(pca_result$u))
+  
+  # Step 3: Compute k-nearest neighbors
+  cat("Step 3: Computing k-nearest neighbors...\n")
+  knn_result <- Neighbour(pca_scores, pca_scores, k = k, build = "kdtree", cores = 0, checks = 1)
+  distances <- knn_result$distances
+  
+  # Step 4: Identify rare cells based on distance gaps
+  cat("Step 4: Identifying rare cells based on distance gaps...\n")
+  distance_diffs <- distances[, -1, drop = FALSE] - distances[, -ncol(distances), drop = FALSE]
+  max_gap_indices <- apply(distance_diffs, 1, which.max)
+  
+  rare_cells <- list()
+  for (l in 2:k) {
+    gap_cells <- which(max_gap_indices == l)
+    for (cell in gap_cells) {
+      neighbors <- knn_result$indices[cell, 1:(l + n)]
+      sub_pca <- pca_scores[neighbors, ]
+      dist_matrix <- dist(sub_pca)
+      hc <- hclust(dist_matrix, method = "single")
+      cut_height <- max(hc$height) * h
+      cluster_sizes <- table(cutree(hc, h = cut_height))
       
-      clusterss<-cutree(fit1,h=heihts)
-      cell_num<-table(clusterss)
-      
-      if(cell_num[1]==l&bili>0.2){
-        rare_cellss<-knn.res$indices[maxgap, 1:(l)]
-        rare.cells[[as.character(maxgap)]] <- rare_cellss
-        
+      if (cluster_sizes[1] == l && (hc$height[length(hc$height)] - hc$height[length(hc$height) - 2]) / hc$height[length(hc$height)] > 0.2) {
+        rare_cells[[as.character(cell)]] <- knn_result$indices[cell, 1:l]
       }
-      
     }
   }
-  return(rare.cells)
+  
+  cat("Rare cell identification complete.\n")
+  return(rare_cells)
 }
