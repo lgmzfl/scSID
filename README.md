@@ -25,7 +25,7 @@
 R >= 4.1.0
 ```
 ## Performance evaluation
-  <img src="image/Comparison_of_Performance_Scores.jpg" width="1000" height="1130" />
+  <img src="image/Comparison_of_Performance_Scores.jpg" width="500" height="630" />
   
   In terms of rare cell detection, scSID offers best performance compared with other methods.
   
