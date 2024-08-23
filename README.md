@@ -1,5 +1,7 @@
 # scSID
 # Full work will be provided in the future
+#concatenate
+If you have any questions, please contact me z22070033@s.upc.edu.cn
 ## Single-Cell Similarity division for Identifying Rare Cells.
 # Rare cell discovery
 
